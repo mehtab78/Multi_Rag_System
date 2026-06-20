@@ -1,0 +1,26 @@
+# Multi-RAG System Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core
+google-genai>=1.52.0
+gradio>=6.0.2
+
+# Vector Database
+opensearch-py>=3.1.0
+
+# PDF Processing
+unstructured[pdf]>=0.18.20
+pypdf>=5.1.0
+pdfplumber>=0.11.4
+
+# Utilities
+python-dotenv>=1.2.1
+requests>=2.31.0
+tqdm>=4.66.0
+rich>=13.9.0
+
+# Optional: Development dependencies
+# python-mock>=5.1.0
+# black>=25.0.0
+# isort>=5.14.0
+# flake8>=7.1.0

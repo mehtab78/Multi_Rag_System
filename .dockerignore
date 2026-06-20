@@ -1,0 +1,16 @@
+
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+uv.lock
+
+# ── Claude Code Config (API Key Protection) ──
+.claude/
+.claude/settings.json
+.claude/*.json
