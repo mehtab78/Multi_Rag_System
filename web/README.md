@@ -4,6 +4,10 @@ A document-grounded Q&A chatbot that answers **strictly from one source document
 and footnotes every claim back to the passage it came from. This is the
 Vercel-deployable companion to the full Python RAG system in the repo root.
 
+**Live demo:** <https://multi-rag-system.vercel.app/>
+
+![Marginalia demo — typing a question, then a streamed answer with footnote citations and a sources apparatus](demo.gif)
+
 ## Why a separate app?
 
 The root project uses **OpenSearch** (vector DB) + **Ollama** (embeddings) +
