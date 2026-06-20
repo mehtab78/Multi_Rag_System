@@ -20,6 +20,25 @@ type Turn = {
   error?: string;
 };
 
+// Chunks from a session-uploaded PDF. These never touch the server's disk —
+// the browser holds them (sessionStorage) and resends them on each question.
+type UploadedChunk = {
+  id: string;
+  page: number;
+  file_name: string;
+  content: string;
+  embedding: number[];
+};
+
+type UploadedDoc = {
+  file_name: string;
+  pages: number;
+  truncated: boolean;
+  chunks: UploadedChunk[];
+};
+
+const DOCS_STORAGE_KEY = "marginalia:session-docs";
+
 export type Stats = {
   source: string;
   pages: number;
@@ -74,9 +93,67 @@ export default function Chat({ stats }: { stats: Stats }) {
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
+  const [docs, setDocs] = useState<UploadedDoc[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [turns]);
+
+  // Hydrate uploaded docs from this tab's session, then keep them in sync.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DOCS_STORAGE_KEY);
+      if (raw) setDocs(JSON.parse(raw));
+    } catch {
+      /* ignore corrupt/missing session state */
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      if (docs.length) sessionStorage.setItem(DOCS_STORAGE_KEY, JSON.stringify(docs));
+      else sessionStorage.removeItem(DOCS_STORAGE_KEY);
+    } catch {
+      /* sessionStorage may be full or unavailable (private mode) */
+    }
+  }, [docs]);
+
+  const extraChunkCount = docs.reduce((n, d) => n + d.chunks.length, 0);
+
+  const onPickFile = () => fileInputRef.current?.click();
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Upload failed");
+      setDocs((d) => [
+        ...d.filter((x) => x.file_name !== data.file_name),
+        {
+          file_name: data.file_name,
+          pages: data.pages,
+          truncated: data.truncated,
+          chunks: data.chunks,
+        },
+      ]);
+    } catch (err: any) {
+      setUploadError(err?.message ?? "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeDoc = (file_name: string) =>
+    setDocs((d) => d.filter((x) => x.file_name !== file_name));
 
   const scrollToCite = useCallback((turnId: number, n: number) => {
     const el = document.getElementById(`fn-${turnId}-${n}`);
@@ -103,10 +180,11 @@ export default function Chat({ stats }: { stats: Stats }) {
 
       try {
         setActiveStep(2); // Embed
+        const extraChunks = docs.flatMap((d) => d.chunks);
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: q, topK: 5 }),
+          body: JSON.stringify({ question: q, topK: 5, extraChunks }),
         });
 
         if (!res.ok || !res.body) {
@@ -156,7 +234,7 @@ export default function Chat({ stats }: { stats: Stats }) {
         setActiveStep(-1);
       }
     },
-    [busy]
+    [busy, docs]
   );
 
   const onSubmit = (e: React.FormEvent) => {
@@ -194,7 +272,10 @@ export default function Chat({ stats }: { stats: Stats }) {
             </div>
             <div className="stat">
               <span className="k">chunks</span>
-              <span className="v">{stats.chunks}</span>
+              <span className="v">
+                {stats.chunks}
+                {extraChunkCount > 0 ? ` +${extraChunkCount}` : ""}
+              </span>
             </div>
             <div className="stat">
               <span className="k">embed</span>
@@ -218,6 +299,45 @@ export default function Chat({ stats }: { stats: Stats }) {
               </li>
             ))}
           </ul>
+
+          <div className="upload">
+            <div className="card-label">Your documents · this tab only</div>
+            {docs.map((d) => (
+              <div className="doc-chip" key={d.file_name}>
+                <span className="doc-name" title={d.file_name}>
+                  {d.file_name}
+                </span>
+                <span className="doc-meta">
+                  {d.chunks.length} chunks{d.truncated ? " (truncated)" : ""}
+                </span>
+                <button
+                  type="button"
+                  className="doc-x"
+                  aria-label={`Remove ${d.file_name}`}
+                  onClick={() => removeDoc(d.file_name)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf"
+              className="upload-input"
+              onChange={onFileChange}
+            />
+            <button
+              type="button"
+              className="upload-btn"
+              onClick={onPickFile}
+              disabled={uploading}
+            >
+              {uploading ? "Embedding…" : "+ Add a PDF to retrieve from"}
+            </button>
+            {uploadError && <div className="upload-err">⚠ {uploadError}</div>}
+          </div>
         </div>
       </aside>
 

@@ -25,6 +25,17 @@ ingest → chunk → embed → retrieve → cited generation — but in a server
 The document vectors are **precomputed once** and shipped in
 `data/embeddings.json`, so the only runtime dependency is the Gemini API.
 
+### Adding your own document (session-only)
+
+The "+ Add a PDF to retrieve from" control in the sidebar lets a visitor add
+a PDF on the spot: `/api/upload` extracts and chunks it the same way as
+`build_embeddings.py`, embeds the chunks with Gemini, and returns them to the
+browser. The browser holds them (`sessionStorage`, that tab only) and resends
+them with each question, where `lib/rag.ts#search` merges them into the
+cosine-similarity pool. Nothing is written server-side, so this needs no
+database — capped at 4MB / 80 chunks per upload to stay within Vercel's
+request-body limit and the function's `maxDuration`.
+
 ## Architecture
 
 ```

@@ -6,6 +6,7 @@ import {
   SYSTEM_INSTRUCTION,
   EMBED_MODEL,
   EMBED_DIM,
+  sanitizeExtraChunks,
 } from "@/lib/rag";
 
 export const runtime = "nodejs";
@@ -20,10 +21,12 @@ const GEN_MODEL = "gemini-2.5-flash";
 export async function POST(req: NextRequest) {
   let question = "";
   let topK = 5;
+  let extraChunks: ReturnType<typeof sanitizeExtraChunks> = [];
   try {
     const body = await req.json();
     question = (body.question ?? "").toString();
     if (Number.isFinite(body.topK)) topK = Math.max(1, Math.min(8, body.topK));
+    extraChunks = sanitizeExtraChunks(body.extraChunks);
   } catch {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -61,7 +64,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 2. Retrieve, then 3. stream a grounded, cited answer.
-  const hits = search(queryEmbedding, topK);
+  const hits = search(queryEmbedding, topK, extraChunks);
   const prompt = buildPrompt(question, hits);
 
   const encoder = new TextEncoder();

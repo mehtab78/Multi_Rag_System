@@ -233,6 +233,79 @@ body::before {
   font-style: italic;
 }
 
+/* ---------- session document upload ---------- */
+.upload {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule-soft);
+}
+
+.doc-chip {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.doc-name {
+  color: var(--ink);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.doc-meta {
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.doc-x {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.doc-x:hover {
+  color: var(--accent-2);
+}
+
+.upload-input {
+  display: none;
+}
+.upload-btn {
+  width: 100%;
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  background: transparent;
+  border: 1px dashed var(--rule);
+  border-radius: 3px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.18s, color 0.18s, background 0.18s;
+}
+.upload-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: rgba(154, 51, 36, 0.05);
+}
+.upload-btn:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+.upload-err {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--accent);
+}
+
 /* ---------- conversation ---------- */
 .main {
   animation: fadeUp 0.7s 0.18s both;
