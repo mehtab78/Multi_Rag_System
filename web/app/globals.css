@@ -32,8 +32,7 @@ body {
   background-color: var(--paper);
   background-image:
     radial-gradient(120% 80% at 12% -10%, rgba(176, 119, 38, 0.10), transparent 60%),
-    radial-gradient(120% 90% at 100% 0%, rgba(154, 51, 36, 0.07), transparent 55%),
-    repeating-linear-gradient(0deg, transparent 0 38px, var(--rule-soft) 38px 39px);
+    radial-gradient(120% 90% at 100% 0%, rgba(154, 51, 36, 0.07), transparent 55%);
   background-attachment: fixed;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
@@ -94,7 +93,7 @@ body::before {
   font-size: clamp(44px, 8vw, 96px);
   line-height: 0.92;
   letter-spacing: -0.02em;
-  margin: 12px 0 6px;
+  margin: 12px 0 18px;
   font-variation-settings: "SOFT" 0, "WONK" 1;
 }
 .title em {
