@@ -8,7 +8,7 @@ export const maxDuration = 60;
 const MAX_BYTES = 4 * 1024 * 1024; // stay under Vercel's request body limit
 const MAX_CHUNKS = 80; // bound embedding calls + maxDuration for one upload
 const EMBED_BATCH = 25;
-const MAX_PAGES = 500; // reject absurdly long PDFs before walking any pages
+const MAX_PAGES = 100; // documents over this are rejected up front, before extraction
 const MAX_PAGE_ITEMS = 50_000; // a single page reporting more items than this is pathological
 const MAX_EXTRACTED_CHARS = MAX_CHUNKS * 900 * 2; // plenty of slack over what chunking can use
 
@@ -53,6 +53,14 @@ export async function POST(req: Request) {
   try {
     pages = await extractPdfPages(buf);
   } catch (e: any) {
+    if (e instanceof TooManyPagesError) {
+      return Response.json(
+        {
+          error: `That PDF has ${e.numPages} pages. This demo only accepts documents up to ${MAX_PAGES} pages — try a shorter document or split it first.`,
+        },
+        { status: 413 }
+      );
+    }
     return Response.json(
       { error: `Could not read PDF: ${e?.message ?? e}` },
       { status: 400 }
@@ -110,6 +118,14 @@ export async function POST(req: Request) {
   });
 }
 
+class TooManyPagesError extends Error {
+  numPages: number;
+  constructor(numPages: number) {
+    super(`PDF has ${numPages} pages; the limit is ${MAX_PAGES}.`);
+    this.numPages = numPages;
+  }
+}
+
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
     p,
@@ -136,8 +152,9 @@ async function extractPdfPages(buf: Buffer): Promise<{ page: number; text: strin
   }).promise;
 
   if (doc.numPages > MAX_PAGES) {
+    const numPages = doc.numPages;
     await doc.destroy();
-    throw new Error(`PDF has ${doc.numPages} pages; the limit is ${MAX_PAGES}.`);
+    throw new TooManyPagesError(numPages);
   }
 
   const pages: { page: number; text: string }[] = [];
