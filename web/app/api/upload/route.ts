@@ -8,6 +8,9 @@ export const maxDuration = 60;
 const MAX_BYTES = 4 * 1024 * 1024; // stay under Vercel's request body limit
 const MAX_CHUNKS = 80; // bound embedding calls + maxDuration for one upload
 const EMBED_BATCH = 25;
+const MAX_PAGES = 500; // reject absurdly long PDFs before walking any pages
+const MAX_PAGE_ITEMS = 50_000; // a single page reporting more items than this is pathological
+const MAX_EXTRACTED_CHARS = MAX_CHUNKS * 900 * 2; // plenty of slack over what chunking can use
 
 // Session-only document upload: extract -> chunk -> embed, return the
 // embedded chunks to the browser. Nothing is written server-side — the
@@ -107,6 +110,15 @@ export async function POST(req: Request) {
   });
 }
 
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timed out extracting ${label}`)), ms)
+    ),
+  ]);
+}
+
 function l2normalize(v: number[]): number[] {
   let n = 0;
   for (const x of v) n += x * x;
@@ -123,17 +135,35 @@ async function extractPdfPages(buf: Buffer): Promise<{ page: number; text: strin
     disableFontFace: true,
   }).promise;
 
+  if (doc.numPages > MAX_PAGES) {
+    await doc.destroy();
+    throw new Error(`PDF has ${doc.numPages} pages; the limit is ${MAX_PAGES}.`);
+  }
+
   const pages: { page: number; text: string }[] = [];
+  let totalChars = 0;
+  const deadline = Date.now() + 45_000; // leave headroom under maxDuration=60s
   try {
     for (let i = 1; i <= doc.numPages; i++) {
-      const page = await doc.getPage(i);
-      const content = await page.getTextContent();
-      const text = content.items
+      if (Date.now() > deadline) break;
+      const page = await withTimeout(doc.getPage(i), 10_000, `page ${i} load`);
+      const content = await withTimeout(page.getTextContent(), 10_000, `page ${i} text`);
+      // A single page can carry an outsized item array (compression-bomb
+      // style); skip extracting it rather than joining/regexing megabytes.
+      const items =
+        content.items.length > MAX_PAGE_ITEMS
+          ? content.items.slice(0, MAX_PAGE_ITEMS)
+          : content.items;
+      const text = items
         .map((it: any) => ("str" in it ? it.str : ""))
         .join(" ")
         .replace(/\s+/g, " ")
         .trim();
-      if (text) pages.push({ page: i, text });
+      if (text) {
+        pages.push({ page: i, text });
+        totalChars += text.length;
+      }
+      if (totalChars >= MAX_EXTRACTED_CHARS) break;
     }
   } finally {
     await doc.destroy();
